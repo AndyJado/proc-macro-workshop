@@ -13,23 +13,23 @@
 //
 // Before moving on, have the macro also generate:
 //
-//     pub struct CommandBuilder {
-//         executable: Option<String>,
-//         args: Option<Vec<String>>,
-//         env: Option<Vec<String>>,
-//         current_dir: Option<String>,
-//     }
+// pub struct CommandBuilder {
+//     executable: Option<String>,
+//     args: Option<Vec<String>>,
+//     env: Option<Vec<String>>,
+//     current_dir: Option<String>,
+// }
 //
 // and in the `builder` function:
 //
 //     impl Command {
-//         pub fn builder() -> CommandBuilder {
-//             CommandBuilder {
-//                 executable: None,
-//                 args: None,
-//                 env: None,
-//                 current_dir: None,
-//             }
+// pub fn builder() -> CommandBuilder {
+//     CommandBuilder {
+//         executable: None,
+//         args: None,
+//         env: None,
+//         current_dir: None,
+//     }
 //         }
 //     }
 //

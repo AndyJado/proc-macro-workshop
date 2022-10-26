@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput};
 
@@ -65,7 +65,7 @@ fn builder(data: &Data) -> TokenStream {
                 // FIXME: how to return unwraped?
                 let recurse = fields.named.iter().map(|f| f.ident.clone().unwrap());
                 quote! {
-                    #(#recurse:#recurse),*
+                    #(#recurse),*
                 }
             }
             _ => unimplemented!(),

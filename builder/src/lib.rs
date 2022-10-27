@@ -62,8 +62,7 @@ fn builder(data: &Data) -> TokenStream {
     match *data {
         Data::Struct(ref data) => match data.fields {
             syn::Fields::Named(ref fields) => {
-                // FIXME: how to return unwraped?
-                let recurse = fields.named.iter().map(|f| f.ident.clone().unwrap());
+                let recurse = fields.named.iter().map(|f| &f.ident);
                 quote! {
                     #(#recurse),*
                 }

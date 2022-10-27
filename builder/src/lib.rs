@@ -35,11 +35,11 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 let s = stringify!(#belly);
                 println!("{:?}", s);
             }
-            fn build(mut self) -> Result<#name, Box<dyn std::error::Error>> {
-                let executable = self.executable.unwrap();
-                let args = self.args.unwrap();
-                let env = self.env.unwrap();
-                let current_dir = self.current_dir.unwrap();
+            fn build(&mut self) -> Result<#name, Box<dyn std::error::Error>> {
+                let executable = self.executable.take().unwrap();
+                let args = self.args.take().unwrap();
+                let env = self.env.take().unwrap();
+                let current_dir = self.current_dir.take().unwrap();
                 //FIXME: quote!
                 Ok(#name {#belly})
             }

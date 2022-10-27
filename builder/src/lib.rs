@@ -1,20 +1,17 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{parse_macro_input, Data, DeriveInput};
 
 #[proc_macro_derive(Builder)]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let inpu = parse_macro_input!(input as DeriveInput);
     let name = inpu.ident;
+    let builder_name = format_ident!("{}Builder", name);
     let belly = builder(&inpu.data);
+    let builder_belly = builder_body(&inpu.data);
     let expaned = quote! {
-        pub struct CommandBuilder {
-            executable: Option<String>,
-            args: Option<Vec<String>>,
-            env: Option<Vec<String>>,
-            current_dir: Option<String>,
-        }
-        impl CommandBuilder {
+        pub struct #builder_name {#builder_belly}
+        impl #builder_name {
             fn executable(&mut self, executable: String) -> &mut Self {
                 self.executable = Some(executable);
                 self
@@ -40,13 +37,12 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 let args = self.args.take().unwrap();
                 let env = self.env.take().unwrap();
                 let current_dir = self.current_dir.take().unwrap();
-                //FIXME: quote!
                 Ok(#name {#belly})
             }
         }
         impl #name {
-            pub fn builder() -> CommandBuilder {
-                CommandBuilder {
+            pub fn builder() -> #builder_name {
+                #builder_name {
                     executable: None,
                     args: None,
                     env: None,
@@ -58,17 +54,35 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     proc_macro::TokenStream::from(expaned)
 }
 
-fn builder(data: &Data) -> TokenStream {
+type FieldsFinger = dyn Fn(&syn::FieldsNamed) -> TokenStream;
+
+fn struct_data(cb: &FieldsFinger, data: &Data) -> TokenStream {
     match *data {
         Data::Struct(ref data) => match data.fields {
-            syn::Fields::Named(ref fields) => {
-                let recurse = fields.named.iter().map(|f| &f.ident);
-                quote! {
-                    #(#recurse),*
-                }
-            }
+            syn::Fields::Named(ref fields) => cb(fields),
             _ => unimplemented!(),
         },
         _ => unimplemented!(),
     }
+}
+
+fn builder_body(data: &Data) -> TokenStream {
+    let cb: Box<FieldsFinger> = Box::new(|fields| {
+        let recurse = fields.named.iter().map(|f| &f.ident);
+        let recurse_ty = fields.named.iter().map(|f| &f.ty);
+        quote! {
+            #(#recurse : Option<#recurse_ty>),*
+        }
+    });
+    struct_data(&cb, data)
+}
+
+fn builder(data: &Data) -> TokenStream {
+    let cb: Box<FieldsFinger> = Box::new(|fields| {
+        let recurse = fields.named.iter().map(|f| &f.ident);
+        quote! {
+            #(#recurse),*
+        }
+    });
+    struct_data(&cb, data)
 }

@@ -2,10 +2,10 @@
 // more convenient than passing a full vector of args to the builder all at
 // once.
 //
-// Look for a field attribute #[builder(each = "...")] on each field. The
+//**Look for a field attribute #[builder(each = "...")] on each field. The
 // generated code may assume that fields with this attribute have the type Vec
 // and should use the word given in the string literal as the name for the
-// corresponding builder method which accepts one vector element at a time.
+// corresponding builder method which accepts one vector element at a time.**
 //
 // In order for the compiler to know that these builder attributes are
 // associated with your macro, they must be declared at the entry point of the

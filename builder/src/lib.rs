@@ -1,53 +1,50 @@
 use proc_macro::TokenStream;
-use proc_macro2::Ident;
 use quote::quote;
-use std::collections::HashMap;
 use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed};
 
 #[proc_macro_derive(Builder)]
 pub fn derive(input: TokenStream) -> TokenStream {
-    const OPTION_SEGMENTS: &[&'static str] = &["std", "option", "Option"];
-    // const VEC_SEGMENTS: &[&'static str] = &["std", "vec", "Vec"];
     let stru = parse_macro_input!(input as DeriveInput);
     let (iden, data) = (stru.ident, stru.data);
     let fids = named_fields(&data);
     let builder_iden = quote::format_ident!("{}Builder", iden);
     let builder_fields = fids.named.iter().map(|fid| {
-        let name = fid.ident.as_ref().unwrap();
-        let ty = &fid.ty;
-        quote! {#name: }
+        let name = &fid.ident;
+        let ty = grantee_not_a(&fid.ty, "Option");
+        quote! {#name: Option<#ty>,}
     });
-    for fid in fids.named.iter() {
-        if let syn::Type::Path(ty_path) = &fid.ty {
-            if let Some(last_segmn) = ty_path.path.segments.iter().rev().next() {
-                //FIXME: how to match a Type properly?
-                if last_segmn.ident.to_string() == "Option" {
-                    // quote! { std::option::Option<#> }
-                    quote! { #ty_path }
-                } else {
-                    quote! { Option<#ty_path> }
-                }
-            } else {
-                unimplemented!()
+    let builder_inits = fids.named.iter().map(|fid| {
+        let name = &fid.ident;
+        quote! { #name: None, }
+    });
+    let builder_methods = fids.named.iter().map(|fid| {
+        let name = &fid.ident;
+        let ty = grantee_not_a(&fid.ty, "Option");
+        quote! {
+            pub fn #name(&mut self, #name: #ty) -> &mut Self {
+                self.#name = Some(#name);
+                self
             }
-        } else {
-            unimplemented!()
-        };
-    }
-
+        }
+    });
+    let build_with = fids.named.iter().map(|fid| {
+        let name = &fid.ident;
+        quote! { #name: self.#name.clone(), }
+    });
     let expanded = quote! {
         pub struct #builder_iden { #(#builder_fields)* }
 
         impl #builder_iden {
-            #!builder_methods
-            pub fn build(&mut self) -> std::result::Result<#iden,std::box::Box<dyn std::error::Error>> {
-                Ok(#iden { #!builder_fields })
-            }
+            #(#builder_methods)*
+
+            // pub fn build(&mut self) -> std::result::Result<#iden,std::boxed::Box<dyn std::error::Error>> {
+            //     Ok(#iden { #(#build_with)* })
+            // }
         }
 
         impl #iden {
             pub fn builder() -> #builder_iden {
-                #builder_iden { #!builder_init }
+                #builder_iden { #(#builder_inits)* }
             }
         }
     };
@@ -55,7 +52,31 @@ pub fn derive(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-fn grantee_a_option(ty: &syn::Type) {}
+fn grantee_not_a(ty: &syn::Type, not_ty: &str) -> proc_macro2::TokenStream {
+    if let syn::Type::Path(ty_path) = &ty {
+        if let Some(last_segmn) = ty_path.path.segments.iter().rev().next() {
+            //FIXME: how to match a Type properly?
+            // quote! { std::option::Option<#> }
+            if last_segmn.ident == not_ty {
+                if let syn::PathArguments::AngleBracketed(syn::AngleBracketedGenericArguments {
+                    args,
+                    ..
+                }) = &last_segmn.arguments
+                {
+                    quote! {#args}
+                } else {
+                    unimplemented!("Option<wa?>")
+                }
+            } else {
+                quote! { #ty_path }
+            }
+        } else {
+            unimplemented!("no last_segment?")
+        }
+    } else {
+        unimplemented!("wa ty not ty_path?")
+    }
+}
 
 /// panic unless named struct
 fn named_fields(data: &Data) -> &FieldsNamed {
@@ -68,27 +89,4 @@ fn named_fields(data: &Data) -> &FieldsNamed {
     } else {
         unimplemented!()
     }
-}
-
-#[test]
-fn quote_par_bra() {
-    let quo_par = quote::quote!(std::option::Option<String>);
-    let quo_bra = quote::quote! {std::option::Option<String>};
-    assert_eq!(quo_bra.to_string(), quo_par.to_string());
-}
-
-macro_rules! eval {
-    ($e: expr) => {
-        $e
-    };
-}
-
-#[test]
-fn eval_hijane() {
-    let a = 5;
-    let ts2 = quote! {
-        let a = 3
-    };
-    eval!(ts2);
-    assert_eq!(a, 5);
 }

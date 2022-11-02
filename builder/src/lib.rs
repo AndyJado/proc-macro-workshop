@@ -10,18 +10,54 @@ pub fn derive(input: TokenStream) -> TokenStream {
     // const VEC_SEGMENTS: &[&'static str] = &["std", "vec", "Vec"];
     let stru = parse_macro_input!(input as DeriveInput);
     let (iden, data) = (stru.ident, stru.data);
-    // named fids syn REP of stru
     let fids = named_fields(&data);
-    let fids_tys: HashMap<&Ident, &syn::Type> = HashMap::new();
+    let builder_iden = quote::format_ident!("{}Builder", iden);
+    let builder_fields = fids.named.iter().map(|fid| {
+        let name = fid.ident.as_ref().unwrap();
+        let ty = &fid.ty;
+        quote! {#name: }
+    });
     for fid in fids.named.iter() {
         if let syn::Type::Path(ty_path) = &fid.ty {
-            &ty_path.path.segments.iter();
+            if let Some(last_segmn) = ty_path.path.segments.iter().rev().next() {
+                //FIXME: how to match a Type properly?
+                if last_segmn.ident.to_string() == "Option" {
+                    // quote! { std::option::Option<#> }
+                    quote! { #ty_path }
+                } else {
+                    quote! { Option<#ty_path> }
+                }
+            } else {
+                unimplemented!()
+            }
+        } else {
+            unimplemented!()
         };
     }
 
-    unimplemented!()
+    let expanded = quote! {
+        pub struct #builder_iden { #(#builder_fields)* }
+
+        impl #builder_iden {
+            #!builder_methods
+            pub fn build(&mut self) -> std::result::Result<#iden,std::box::Box<dyn std::error::Error>> {
+                Ok(#iden { #!builder_fields })
+            }
+        }
+
+        impl #iden {
+            pub fn builder() -> #builder_iden {
+                #builder_iden { #!builder_init }
+            }
+        }
+    };
+
+    expanded.into()
 }
 
+fn grantee_a_option(ty: &syn::Type) {}
+
+/// panic unless named struct
 fn named_fields(data: &Data) -> &FieldsNamed {
     if let Data::Struct(DataStruct {
         fields: Fields::Named(named_fields),

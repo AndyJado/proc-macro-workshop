@@ -1,6 +1,10 @@
 use proc_macro::TokenStream;
+use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed};
+use syn::{
+    parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Lit, Meta,
+    MetaNameValue, NestedMeta,
+};
 
 #[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: TokenStream) -> TokenStream {
@@ -20,14 +24,69 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let builder_methods = fids.named.iter().map(|fid| {
         let name = &fid.ident;
         let attrs = &fid.attrs;
-        for atri in attrs {
-            atri.parse_meta();
-        }
+        let each_iden = attrs.iter().map(|attr| match attr.parse_meta() {
+            Ok(meta) => match meta {
+                Meta::List(meta_list) => {
+                    //FIXME: I suppose you do rev() on a Path Ty to get the value
+                    if meta_list.path.segments.iter().rev().next().unwrap().ident == "builder" {
+                        match meta_list.nested.iter().next() {
+                            Some(ref nest_meta) => {
+                                let &NestedMeta::Meta(Meta::NameValue(MetaNameValue{path, lit: Lit::Str(lit_str),..})) = nest_meta else {
+                                    unimplemented!("builder attribute typo?");
+                                };
+                                if path.segments.iter().rev().next().unwrap().ident == "each" {
+                                    // lit_str.value()
+                                    Ident::new(&lit_str.value(),lit_str.span())
+                                } else {panic!("each == each ")}
+                            }
+                            None => panic!("[foo(asda = as)")
+                        }
+                    } else {
+                        unimplemented!("only builder in metalist_path")
+                    }
+                }
+                _ => unimplemented!("now only [builder(bla = \"bla\")]"),
+            },
+            Err(_) => panic!(),
+        }).next();
+        let ty_each = grantee_not_a(&fid.ty,"Vec").1;
         let ty = grantee_not_a(&fid.ty, "Option").1;
-        quote! {
-            pub fn #name(&mut self, #name: #ty) -> &mut Self {
-                self.#name = Some(#name);
+        let field_method =  quote! {
+                    pub fn #name(&mut self, #name: #ty) -> &mut Self {
+                        self.#name = Some(#name);
+                        self
+                    }
+                };
+        let each_method = quote! {
+            pub fn #each_iden(&mut self,#each_iden: #ty_each) -> &mut Self {
+                let field = &mut self.#name;
+                match field {
+                    Some(v) => {
+                        v.push(#each_iden);
+                    },
+                    None => {
+                        *field = Some(vec![#each_iden]);
+                    }
+                }
                 self
+            }
+        };
+        // "each = env" & field name env conflict, then only generate each method.
+        if name == &each_iden {
+            each_method
+        } else {
+            match &each_iden {
+                // "each = arg, field = args"
+                Some(_) => {
+                    quote! {
+                        #each_method
+                        #field_method
+                    }
+                },
+                // with no attributes
+                None => {
+                    field_method
+                },
             }
         }
     });

@@ -18,6 +18,7 @@
 // attributes do not correspond to a macro invocation on their own; they are
 // simply looked at by other macro invocations.
 //
+// FIXME
 // If the new one-at-a-time builder method is given the same name as the field,
 // avoid generating an all-at-once builder method for that field because the
 // names would conflict.

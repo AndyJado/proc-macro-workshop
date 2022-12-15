@@ -2,8 +2,8 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
 use syn::{
-    parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Lit, Meta,
-    MetaNameValue, NestedMeta,
+    parse_macro_input, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Lit, Meta, MetaList,
+    MetaNameValue, NestedMeta, Path,
 };
 
 #[proc_macro_derive(Builder, attributes(builder))]
@@ -24,39 +24,22 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let builder_methods = fids.named.iter().map(|fid| {
         let name = &fid.ident;
         let attrs = &fid.attrs;
-        let each_iden = attrs.iter().map(|attr| match attr.parse_meta() {
-            Ok(meta) => match meta {
-                Meta::List(meta_list) => {
-                    //FIXME: I suppose you do rev() on a Path Ty to get the value
-                    if meta_list.path.segments.iter().rev().next().unwrap().ident == "builder" {
-                        match meta_list.nested.iter().next() {
-                            Some(ref nest_meta) => {
-                                let &NestedMeta::Meta(Meta::NameValue(MetaNameValue{path, lit: Lit::Str(lit_str),..})) = nest_meta else {
-                                    unimplemented!("builder attribute typo?");
-                                };
-                                if path.segments.iter().rev().next().unwrap().ident == "each" {
-                                    // lit_str.value()
-                                    Ident::new(&lit_str.value(),lit_str.span())
-                                } else {panic!("each == each ")}
-                            }
-                            None => panic!("[foo(asda = as)")
-                        }
-                    } else {
-                        unimplemented!("only builder in metalist_path")
-                    }
-                }
-                _ => unimplemented!("now only [builder(bla = \"bla\")]"),
-            },
-            Err(_) => panic!(),
-        }).next();
-        let ty_each = grantee_not_a(&fid.ty,"Vec").1;
+        // change the builder method on attribute says
+        let each_iden = attrs
+            .iter()
+            .map(|attr| {
+                attr.parse_meta().unwrap();
+                todo!()
+            })
+            .next();
+        let ty_each = grantee_not_a(&fid.ty, "Vec").1;
         let ty = grantee_not_a(&fid.ty, "Option").1;
-        let field_method =  quote! {
-                    pub fn #name(&mut self, #name: #ty) -> &mut Self {
-                        self.#name = Some(#name);
-                        self
-                    }
-                };
+        let field_method = quote! {
+            pub fn #name(&mut self, #name: #ty) -> &mut Self {
+                self.#name = Some(#name);
+                self
+            }
+        };
         let each_method = quote! {
             pub fn #each_iden(&mut self,#each_iden: #ty_each) -> &mut Self {
                 let field = &mut self.#name;
@@ -82,11 +65,9 @@ pub fn derive(input: TokenStream) -> TokenStream {
                         #each_method
                         #field_method
                     }
-                },
+                }
                 // with no attributes
-                None => {
-                    field_method
-                },
+                None => field_method,
             }
         }
     });
@@ -162,4 +143,48 @@ fn named_fields(data: &Data) -> &FieldsNamed {
     } else {
         unimplemented!()
     }
+}
+
+macro_rules! field_each_attr_guard {
+    ($b:ident, $e:ident) => {
+        if b != "builder" || e != "each" {
+            compile_error!("expected `builder(each = \"...\")`")
+        }
+    };
+}
+
+fn attr2iden(meta: Meta) {
+    let Meta::List(MetaList {
+        path: Path { segments, .. },
+        nested,
+        ..
+    }) = meta else {return};
+    let builder_attr_str = &segments.iter().rev().next().unwrap().ident.to_string();
+    // let each_iden_qot;
+    let NestedMeta::Meta(Meta::NameValue(MetaNameValue { path, lit,.. })) = &nested.iter().next().unwrap() else {return};
+    let lit_str = lit.suffix();
+    field_each_attr_guard!(builder_attr_qot, lit);
+    // Meta::List(meta_list) => {
+    //     //FIXME: I suppose you do rev() on a Path Ty to get the value
+    //     if meta_list.path.segments.iter().rev().next().unwrap().ident == "builder" {
+    //         match meta_list.nested.iter().next() {
+    //             Some(ref nest_meta) => {
+    //                 let &NestedMeta::Meta(Meta::NameValue(MetaNameValue{path, lit: Lit::Str(lit_str),..})) = nest_meta else {
+    //                     unimplemented!("builder attribute typo?");
+    //                 };
+    //                 if path.segments.iter().rev().next().unwrap().ident == "each" {
+    //                     // lit_str.value()
+    //                     Ident::new(&lit_str.value(),lit_str.span())
+    //                 } else {
+    //                     //FIXME:
+    //                     compile_error!("expected `builder(each = \"...\")`")
+    //                 }
+    //             }
+    //             None => panic!("[foo(asda = as)")
+    //         }
+    //     } else {
+    //         unimplemented!("only builder in metalist_path")
+    //     }
+    // }
+    // _ => unimplemented!("now only [builder(bla = \"bla\")]"),
 }
